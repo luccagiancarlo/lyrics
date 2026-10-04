@@ -2,7 +2,8 @@
 """Worker iniciado pelo Lua. Python 3.8+; sem pacotes externos."""
 import json, sys, time, urllib.request
 from pathlib import Path
-URL = 'https://luccasoftware.com.br/music/post_lyrics.php'
+#URL = 'https://luccasoftware.com.br/music/post_lyrics.php'
+URL = 'http://127.0.0.1:8080/post_lyrics'
 TOKEN = '3e8dd779f921ba3c7ee0e8490ebf85cfabc4b41e1e6c5f8e'
 
 def run(folder):
