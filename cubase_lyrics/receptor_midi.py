@@ -14,9 +14,8 @@ BASE = Path(__file__).resolve().parent
 
 class PhraseState:
     """A última nota ativada tem prioridade; seu note_off limpa sem reexibir anteriores."""
-    def __init__(self, phrases, channel=1, max_note_seconds=300):
+    def __init__(self, phrases, max_note_seconds=300):
         self.phrases = phrases
-        self.channel = channel - 1
         self.max_note_seconds = max_note_seconds
         self.lock = threading.Lock()
         self.text = ''
@@ -43,32 +42,39 @@ class PhraseState:
         if msg.type in ('stop', 'reset'):
             self.clear()
             return
-        if getattr(msg, 'channel', None) != self.channel:
+        channel = getattr(msg, 'channel', None)
+        if channel is None:
             return
         if msg.type == 'control_change' and msg.control in (120, 123):
-            self.clear()
+            with self.lock:
+                if self.active is not None and self.active[0] == channel:
+                    self.active = None
+                    self.text = ''
+                    self.revision += 1
             return
         if msg.type not in ('note_on', 'note_off'):
             return
+        identity = (channel, msg.note)
+        key = '%s:%s' % (channel + 1, msg.note)
         if msg.type == 'note_on' and msg.velocity > 0:
-            text = self.phrases.get(str(msg.note))
+            text = self.phrases.get(key)
             if text is None:
-                print('Nota %s sem frase cadastrada; ignorada.' % msg.note, flush=True)
+                print('Canal/nota %s sem frase cadastrada; ignorada.' % key, flush=True)
                 return
             with self.lock:
-                self.active = msg.note
+                self.active = identity
                 self.active_since = time.monotonic()
                 self.text = text
                 self.revision += 1
-            print('Nota %s → %s' % (msg.note, text or '[limpar]'), flush=True)
+            print('Canal/nota %s → %s' % (key, text or '[limpar]'), flush=True)
         else:
             with self.lock:
-                if self.active != msg.note:
+                if self.active != identity:
                     return
                 self.active = None
                 self.text = ''
                 self.revision += 1
-            print('Nota %s terminou → limpar' % msg.note, flush=True)
+            print('Canal/nota %s terminou → limpar' % key, flush=True)
 
 class Sender:
     def __init__(self, config):
@@ -128,9 +134,6 @@ def read_config(path):
         raise ValueError('Configure uma URL http ou https válida')
     if not isinstance(config.get('token', ''), str):
         raise ValueError('token precisa ser um texto')
-    channel = config.get('channel', 1)
-    if not isinstance(channel, int) or isinstance(channel, bool) or not 1 <= channel <= 16:
-        raise ValueError('channel deve ser de 1 a 16')
     for name, default in [('http_timeout', 2), ('max_note_seconds', 300)]:
         value = config.get(name, default)
         if not isinstance(value, (int, float)) or value < 0 or (name == 'http_timeout' and value == 0):
@@ -142,12 +145,22 @@ def read_phrases(path):
     phrases = json.loads(path.read_text(encoding='utf-8'))
     if not isinstance(phrases, dict):
         raise ValueError('frases.json deve conter um objeto com números MIDI e textos')
+    normalized = {}
     for key, text in phrases.items():
-        if not key.isdigit() or str(int(key)) != key or not 0 <= int(key) <= 127:
-            raise ValueError('Número MIDI inválido: %s' % key)
+        # Compatibilidade: chaves antigas "60" são tratadas como "1:60".
+        parts = key.split(':') if ':' in key else ['1', key]
+        if len(parts) != 2 or not all(part.isdigit() for part in parts):
+            raise ValueError('Chave inválida: %s. Use canal:nota, por exemplo 2:60' % key)
+        channel, note = map(int, parts)
+        if not 1 <= channel <= 16 or not 0 <= note <= 127:
+            raise ValueError('Canal/nota fora dos limites: %s' % key)
+        canonical = '%s:%s' % (channel, note)
+        if canonical in normalized:
+            raise ValueError('Associação duplicada: %s' % canonical)
         if not isinstance(text, str) or len(text.encode('utf-8')) > 8000:
-            raise ValueError('Frase inválida ou longa demais na nota %s' % key)
-    return phrases
+            raise ValueError('Frase inválida ou longa demais na chave %s' % key)
+        normalized[canonical] = text
+    return normalized
 
 
 def main():
@@ -158,6 +171,7 @@ def main():
     parser.add_argument('--porta', help='Nome exato da porta MIDI; substitui o arquivo de configuração')
     parser.add_argument('--monitor', action='store_true', help='Exibir todas as mensagens MIDI recebidas')
     parser.add_argument('--teste-nota', type=int, help='Enviar a frase desta nota sem abrir MIDI')
+    parser.add_argument('--teste-canal', type=int, default=1, help='Canal do teste, de 1 a 16')
     parser.add_argument('--duracao', type=float, default=4, help='Duração do teste em segundos')
     args = parser.parse_args()
     try:
@@ -172,10 +186,10 @@ def main():
         sender = Sender(config)
         if urlsplit(config['url']).scheme == 'https' and not config.get('token'):
             raise ValueError('Preencha token com a chave do config.php ou do lyrics_sender.py')
-        state = PhraseState(phrases, config.get('channel', 1), config.get('max_note_seconds', 300))
+        state = PhraseState(phrases, config.get('max_note_seconds', 300))
         closing = threading.Event()
         if args.teste_nota is not None:
-            text = phrases.get(str(args.teste_nota))
+            text = phrases.get('%s:%s' % (args.teste_canal, args.teste_nota))
             if text is None or args.duracao <= 0:
                 raise ValueError('Escolha uma nota cadastrada e duração positiva')
             try:
@@ -195,7 +209,7 @@ def main():
                 raise ValueError('Porta não encontrada ou ambígua. Use --listar-portas e --porta com o nome exato.')
             name = candidates[0]
         with mido.open_input(name) as port:
-            print('Ouvindo %s, canal %s. Ctrl+C encerra.' % (name, state.channel + 1), flush=True)
+            print('Ouvindo %s, canais 1 a 16. Ctrl+C encerra.' % name, flush=True)
             worker = threading.Thread(target=sender.run, args=(state, closing), daemon=True)
             worker.start()
             try:

@@ -26,8 +26,7 @@ Para servidor_lyrics.py na mesma máquina:
   "url": "http://127.0.0.1:8080/post_lyrics",
   "token": "",
   "midi_port": "Lyrics",
-  "channel": 1,
-  "http_timeout": 2,
+    "http_timeout": 2,
   "max_note_seconds": 300
 }
 ```
@@ -73,31 +72,31 @@ O nome acima é exemplo; copie o nome listado na sua máquina. Se houver somente
 
 1. Crie uma track MIDI chamada Lyrics. O nome é organizacional; o Python recebe a porta MIDI, não o nome da track.
 2. No Inspector, selecione a saída IAC correspondente à porta Lyrics.
-3. Selecione canal MIDI 1. Não encaminhe essa track a um VST de instrumento.
+3. Para uma track por canal, selecione o canal correspondente (1 a 16). Não encaminhe essa track a um VST de instrumento.
 4. Deixe a entrada da track como Not Connected e o monitor desativado, para evitar realimentação do IAC para a própria saída.
 5. Insira uma parte MIDI e desenhe as notas nos momentos da letra.
 6. Evite notas sobrepostas. O início de cada nota mostra a frase e o fim limpa.
 
-O número MIDI 60 é a primeira frase do exemplo, 61 a segunda e 62 a terceira. A numeração de oitavas exibida pelo Cubase varia conforme configuração; não dependa de um rótulo como C3 ou C4. Com --monitor, o Terminal informa note=60, note=61 etc. para conferir.
+No canal 1, o número MIDI 60 é a primeira frase, 61 a segunda e 62 a terceira. A nota 60 dos canais 2 e 3 tem outras frases. A numeração de oitavas exibida pelo Cubase varia conforme configuração; não dependa de um rótulo como C3 ou C4. Com --monitor, o Terminal informa note=60, note=61 etc. para conferir.
 
-Você também pode importar demo_lyrics.mid em uma track MIDI (ou arrastar para o projeto) e atribuir a saída IAC à track importada. A demonstração contém três frases de quatro segundos com intervalos de um segundo, canal 1 e andamento de 120 BPM. O tempo real no projeto depende do andamento e de como o Cubase importar o tempo. Não substitua o andamento do seu VS sem intenção; este é um teste de disparos.
+Você também pode importar demo_lyrics.mid em uma track MIDI (ou arrastar para o projeto) e atribuir a saída IAC à track importada. A demonstração contém cinco frases de quatro segundos com intervalos de um segundo, canais 1, 2 e 3 e andamento de 120 BPM. O tempo real no projeto depende do andamento e de como o Cubase importar o tempo. Não substitua o andamento do seu VS sem intenção; este é um teste de disparos.
 
 ## 6. Cadastrar suas frases
 
-Edite frases.json. As chaves são números MIDI de 0 a 127:
+Edite frases.json. As chaves combinam canal (1 a 16) e número MIDI (0 a 127), com até 2.048 associações:
 
 ```json
 {
-  "60": "Primeira frase",
-  "61": "Segunda frase",
-  "62": "Linha um\nLinha dois",
-  "0": ""
+  "1:60": "Primeira frase",
+  "1:61": "Segunda frase",
+  "2:60": "Linha um\nLinha dois",
+  "1:0": ""
 }
 ```
 
-A nota 0 funciona como comando explícito de limpar porque foi associada a texto vazio. Qualquer nota pode repetir uma frase em vários pontos da música. Para mais frases, use outros números disponíveis (no máximo 128 associações por arquivo). Encerre e reinicie o receptor após editar as frases ou a configuração. Para trocar de repertório use --frases outro_arquivo.json.
+A nota 0 do canal 1 funciona como comando explícito de limpar porque foi associada a texto vazio. Qualquer nota pode repetir uma frase em vários pontos da música. Para mais frases, use outros números disponíveis (no máximo 2.048 associações por arquivo). Encerre e reinicie o receptor após editar as frases ou a configuração. Para trocar de repertório use --frases outro_arquivo.json.
 
-Não sobreponha notas com o mesmo número. Se notas diferentes se sobrepuserem, a última iniciada tem prioridade; o note_off da anterior não apaga a nova. O término da atual limpa, sem restaurar a anterior. Notas sem associação são informadas e ignoradas.
+Não sobreponha notas com o mesmo número no mesmo canal. Se combinações diferentes de canal e nota se sobrepuserem, a última iniciada tem prioridade; o note_off da anterior não apaga a nova. O término da atual limpa, sem restaurar a anterior. Notas sem associação são informadas e ignoradas.
 
 ## 7. Iniciar a apresentação
 
@@ -123,3 +122,21 @@ Foram verificados os eventos com mensagens MIDI simuladas, note_on/off, velocida
 
 - IAC Apple: https://support.apple.com/guide/audio-midi-setup/ams1013/mac
 - Mido: https://mido.readthedocs.io/en/latest/ports/
+
+## Versão com 16 canais
+
+O receptor agora escuta todos os 16 canais. A configuração antiga channel não filtra mais eventos. Arquivos antigos com chaves "60", "61" continuam aceitos e são interpretados como "1:60", "1:61". Não use simultaneamente "60" e "1:60": seriam duplicados.
+
+Organização recomendada: tracks Lyrics 1, Lyrics 2 etc., saída IAC Lyrics em todas, cada track configurada com seu canal. Cada canal tem 128 notas. O exemplo reserva apenas 1:0 para limpar, restando 2.047 combinações para frases; pode usar 1:0 para texto também e aproveitar todas as 2.048.
+
+Para a demo com canais misturados em uma única track, configure o canal da track como Any/Qualquer, para preservar os canais gravados no arquivo MIDI. Se forçar canal 1, todos os disparos de nota 60 usarão 1:60. Alternativamente, separe os eventos em tracks e atribua os canais respectivos.
+
+Teste direto do canal 2:
+
+```bash
+python receptor_midi.py --teste-canal 2 --teste-nota 60
+```
+
+Mido mostra os canais internamente de 0 a 15 no monitor bruto (channel=0 significa canal 1). As chaves de frases.json e a mensagem “Canal/nota” usam 1 a 16, como o Cubase.
+
+A prioridade é global: há uma só frase na tela, mesmo que várias tracks enviem. Note_off de outra combinação não apaga a frase atual. CC120/CC123 limpam apenas se forem do canal da frase atual; Stop/Reset MIDI recebidos limpam todos.

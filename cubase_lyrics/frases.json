@@ -1,6 +1,8 @@
 {
-  "60": "Primeira frase da música",
-  "61": "Segunda frase da música",
-  "62": "Terceira frase\ncom duas linhas",
-  "0": ""
+  "1:60": "Primeira frase da música",
+  "1:61": "Segunda frase da música",
+  "1:62": "Terceira frase\ncom duas linhas",
+  "2:60": "Outra frase, no canal 2",
+  "3:60": "Mais uma frase, no canal 3",
+  "1:0": ""
 }
