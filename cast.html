@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucca Music - Cast</title>
+
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #container {
+            width: 92%;
+            height: 92%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #letra {
+            width: 100%;
+            text-align: center;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 5vw;
+            line-height: 1.25;
+            font-weight: 700;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.75);
+        }
+
+        #status {
+            position: fixed;
+            right: 20px;
+            bottom: 14px;
+            font-size: 14px;
+            opacity: 0.35;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="letra">Aguardando letra...</div>
+    </div>
+
+    <div id="status">Lucca Music</div>
+
+    <script>
+        const receiverContext = cast.framework.CastReceiverContext.getInstance();
+
+        receiverContext.start({
+            disableIdleTimeout: true
+        });
+
+        const letraEl = document.getElementById("letra");
+        let ultimaLetra = "";
+
+        async function atualizarLetra() {
+            try {
+                const response = await fetch(
+                    "https://luccasoftware.com.br/music/index.php?state=1&t=" + Date.now(),
+                    {
+                        method: "GET",
+                        cache: "no-store",
+                        headers: {
+                            "Accept": "application/json"
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error("HTTP " + response.status);
+                }
+
+                const dados = await response.json();
+
+                let texto = "";
+
+                if (typeof dados === "string") {
+                    texto = dados;
+                } else if (dados && typeof dados.text === "string") {
+                    texto = dados.text;
+                }
+
+                texto = texto.trim();
+
+                if (texto !== ultimaLetra) {
+                    ultimaLetra = texto;
+                    letraEl.textContent = texto || "Aguardando letra...";
+                    ajustarTamanho();
+                }
+
+            } catch (erro) {
+                console.error("Erro ao atualizar letra:", erro);
+            }
+        }
+
+        function ajustarTamanho() {
+            const tamanho = ultimaLetra.length;
+
+            if (tamanho < 80) {
+                letraEl.style.fontSize = "5vw";
+            } else if (tamanho < 160) {
+                letraEl.style.fontSize = "4.2vw";
+            } else if (tamanho < 260) {
+                letraEl.style.fontSize = "3.4vw";
+            } else {
+                letraEl.style.fontSize = "2.7vw";
+            }
+        }
+
+        atualizarLetra();
+        setInterval(atualizarLetra, 500);
+    </script>
+</body>
+</html>

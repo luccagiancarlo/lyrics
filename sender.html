@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucca Music - Transmitir para TV</title>
+
+    <style>
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #111;
+            color: #fff;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .card {
+            width: min(520px, 100%);
+            padding: 36px;
+            border-radius: 20px;
+            background: #1c1c1c;
+            text-align: center;
+            box-shadow: 0 18px 60px rgba(0,0,0,.35);
+        }
+
+        h1 { margin: 0 0 12px; font-size: 32px; }
+
+        p {
+            margin: 0 0 28px;
+            color: #bbb;
+            line-height: 1.5;
+        }
+
+        .cast-area {
+            min-height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        google-cast-launcher {
+            width: 72px;
+            height: 72px;
+            --connected-color: #ffffff;
+            --disconnected-color: #ffffff;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 15px;
+            color: #aaa;
+            line-height: 1.5;
+        }
+
+        #debug {
+            margin-top: 14px;
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+
+    <script>
+        /*
+         * TROQUE PELO SEU APPLICATION ID DO GOOGLE CAST.
+         */
+        const APPLICATION_ID = "007A5D4C";
+
+        function atualizarStatus(texto) {
+            const el = document.getElementById("status");
+            if (el) el.textContent = texto;
+        }
+
+        /*
+         * IMPORTANTE:
+         * Este callback precisa existir ANTES de carregar cast_sender.js.
+         */
+        window['__onGCastApiAvailable'] = function(isAvailable) {
+
+            if (!isAvailable) {
+                atualizarStatus(
+                    "A API do Google Cast não está disponível neste navegador."
+                );
+                return;
+            }
+
+            try {
+                const context = cast.framework.CastContext.getInstance();
+
+                context.setOptions({
+                    receiverApplicationId: APPLICATION_ID,
+                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+                });
+
+                context.addEventListener(
+                    cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+                    function(event) {
+
+                        console.log("Cast state:", event.castState);
+
+                        switch (event.castState) {
+
+                            case cast.framework.CastState.NO_DEVICES_AVAILABLE:
+                                atualizarStatus(
+                                    "Nenhum Chromecast encontrado. Verifique se o Mac e o Chromecast estão na mesma rede Wi-Fi."
+                                );
+                                break;
+
+                            case cast.framework.CastState.NOT_CONNECTED:
+                                atualizarStatus(
+                                    "Chromecast encontrado. Clique no botão de transmissão."
+                                );
+                                break;
+
+                            case cast.framework.CastState.CONNECTING:
+                                atualizarStatus(
+                                    "Conectando ao Chromecast..."
+                                );
+                                break;
+
+                            case cast.framework.CastState.CONNECTED:
+                                atualizarStatus(
+                                    "Conectado ao Chromecast."
+                                );
+                                break;
+                        }
+                    }
+                );
+
+                atualizarStatus(
+                    "Google Cast inicializado. Procurando dispositivos..."
+                );
+
+            } catch (erro) {
+                console.error("Erro ao inicializar Cast:", erro);
+                atualizarStatus(
+                    "Erro ao inicializar Google Cast: " + erro.message
+                );
+            }
+        };
+    </script>
+
+    <!-- O SDK precisa ser carregado DEPOIS do callback acima -->
+    <script
+        src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1">
+    </script>
+</head>
+
+<body>
+
+    <main class="card">
+
+        <h1>Lucca Music</h1>
+
+        <p>
+            Clique no botão abaixo para abrir a tela de letras
+            diretamente no Chromecast.
+        </p>
+
+        <div class="cast-area">
+            <google-cast-launcher></google-cast-launcher>
+        </div>
+
+        <div id="status">
+            Carregando Google Cast...
+        </div>
+
+        <div id="debug">
+            Web Sender • luccasoftware.com.br
+        </div>
+
+    </main>
+
+</body>
+</html>
