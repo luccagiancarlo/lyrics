@@ -1,0 +1,8 @@
+{
+  "url": "https://luccasoftware.com.br/music/post_lyrics.php",
+  "token": "",
+  "midi_port": "Lyrics",
+  "channel": 1,
+  "http_timeout": 2,
+  "max_note_seconds": 300
+}
